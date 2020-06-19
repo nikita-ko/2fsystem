@@ -5,6 +5,7 @@ This is a simple filesystem based on a single file.
 
 [FileSystem](https://github.com/kynyan/2fsystem/blob/master/src/main/java/home/work/system/FileSystem.java) is used to perform all the operations, which include:
 * Create file
+* Copy existing file from ambient filesystem
 * Read file
 * Remove file
 * Defragment filesystem

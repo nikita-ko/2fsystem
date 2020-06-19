@@ -360,7 +360,7 @@ public class FileSystem {
         }
     }
 
-    private boolean isEnoughSpace(int length) {
+    public boolean isEnoughSpace(long length) {
         return getAvailableSpace() >= length;
     }
 

@@ -5,8 +5,10 @@ import home.work.system.FileSystem;
 import home.work.system.FileSystemDriver;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import static io.qala.datagen.RandomShortApi.alphanumeric;
@@ -14,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringJUnitConfig(classes = ContextConfig.class)
+@TestPropertySource(locations = "classpath:/test.properties")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class FileSystemDriverTest {
     @Autowired
@@ -73,6 +76,20 @@ public class FileSystemDriverTest {
         fileSystemDriver.overwriteFile(randomName, randomContent.getBytes());
         byte[] result = fileSystemDriver.readFromFile(randomName);
         assertEquals(randomContent, new String(result));
+    }
+
+    @Test
+    public void shouldCopyExistingFile_GivenAbsolutePath() throws IOException {
+        String path = getClass().getClassLoader().getResource("data/some_file.txt").getPath();
+        fileSystemDriver.copyExistingFile(path);
+        byte[] result = fileSystemDriver.readFromFile("some_file.txt");
+        assertEquals("file content 123", new String(result));
+    }
+
+    @Test
+    public void shouldThrowException_IfNotEnoughSpace() {
+        String path = getClass().getClassLoader().getResource("data/large_image.jpeg").getPath();
+        assertThrows(IllegalArgumentException.class, () -> fileSystemDriver.copyExistingFile(path));
     }
 
     private int convertBytesToInt(byte[] array) {
