@@ -3,7 +3,7 @@
 
 This is a simple filesystem based on a single file.
 
-[FileSystem](FileSystem.java) is used to perform all the operations, which include:
+[FileSystem](https://github.com/kynyan/2fsystem/blob/master/src/main/java/home/work/system/FileSystem.java) is used to perform all the operations, which include:
 * Create file
 * Read file
 * Remove file
@@ -13,12 +13,12 @@ This is a simple filesystem based on a single file.
 * Check if the file exists in the system
 * Get available space
 
-[FileSystemDriver](FileSystemDriver.java) is a proxy to access FileSystem. 
+[FileSystemDriver](https://github.com/kynyan/2fsystem/blob/master/src/main/java/home/work/system/FileSystemDriver.java) is a proxy to access FileSystem. 
 All clients are supposed to use FileSystemDriver instance to use FileSystem.
 Thread safety of FileSystem allows multiple instances of FileSystemDriver operate 
-at the same time. Examples of its usage can be found in [FileSystemDriverTest](FileSystemDriverTest.java)
+at the same time. Examples of its usage can be found in [FileSystemDriverTest](https://github.com/kynyan/2fsystem/blob/master/src/test/java/home/work/FileSystemDriverTest.java)
 
-[File](File.java) is a wrapped of String filename and byte[] content which represent a file. 
+[File](https://github.com/kynyan/2fsystem/blob/master/src/main/java/home/work/system/File.java) is a wrapped of String filename and byte[] content which represent a file. 
 
 ## Assumptions and limitations
 
