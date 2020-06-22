@@ -10,6 +10,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -88,19 +90,22 @@ public class FileSystemTest {
     }
 
     @Test
-    public void shouldThrowIOException_whenNotEnoughSpaceToWrite() {
-        File file = getFileWithNameAndContent("file", alphanumeric(3072));
-        assertThrows(IOException.class,
-                () -> fileSystem.writeFileToFileSystem(file),
-                "Available space of 2 kB is less then file size of 3 kB");
-    }
-
-    @Test
     public void shouldThrowIllegalArgumentException_whenTryToWriteFileWithTheSameName() throws IOException {
         fileSystem.writeFileToFileSystem(getFileWithNameAndContent("file", alphanumeric(1, 20)));
         assertThrows(IllegalArgumentException.class,
                 () -> fileSystem.writeFileToFileSystem(getFileWithNameAndContent("file", alphanumeric(1, 20))),
                 "File with \"file\" name already exists");
+    }
+
+    @Test
+    public void shouldThrowIllegalArgumentException_andResetCurrentPosition_ifNotEnoughSpace() throws IOException {
+        int expectedAvailableSpace = fileSystem.getAvailableSpace();
+        String url = "https://github.com/kynyan/2fsystem/blob/master/readme.md";
+        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        assertThrows(IllegalArgumentException.class,
+                () -> fileSystem.writeFileFromConnection(connection, "file"),
+                "Available space of 2 kB is less then file size");
+        assertEquals(expectedAvailableSpace, fileSystem.getAvailableSpace());
     }
 
     @Test
@@ -168,7 +173,7 @@ public class FileSystemTest {
     }
 
     @Test
-    public void shouldOvewriteFile() throws IOException {
+    public void shouldOverwriteFile() throws IOException {
         List<File> listOfFiles = writeSomeFilesToFileSystem(fileSystem);
         int randomFileNumber = integer(0, listOfFiles.size() - 1);
         File original = listOfFiles.get(randomFileNumber);

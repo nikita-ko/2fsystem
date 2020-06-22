@@ -49,14 +49,6 @@ public class FileSystemThreadSafetyTest {
         assertAllFilesEqual(expectedFiles, actualFiles);
     }
 
-    @Test
-    public void shouldReadAndRemoveInParallel() throws IOException, ExecutionException, InterruptedException {
-        List<File> expectedFiles = write5FilesToFileSystem(fileSystem);
-        List<File> actualFiles = readAndWriteFilesInParallel(expectedFiles, true);
-        assertEquals(expectedFiles.size(), actualFiles.size());
-        assertAllFilesEqual(expectedFiles, actualFiles);
-    }
-
     private List<File> readAndWriteFilesInParallel(List<File> expectedFiles, boolean readOnly) throws ExecutionException, InterruptedException {
         List<Future<File>> actualFutureFiles = new ArrayList<>();
         ExecutorService pool = Executors.newFixedThreadPool(10);

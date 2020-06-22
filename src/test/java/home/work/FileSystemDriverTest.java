@@ -9,11 +9,13 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 import static io.qala.datagen.RandomShortApi.alphanumeric;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 @SpringJUnitConfig(classes = ContextConfig.class)
 @TestPropertySource(locations = "classpath:/test.properties")
@@ -25,7 +27,7 @@ public class FileSystemDriverTest {
     private FileSystemDriver fileSystemDriver;
 
     @BeforeAll
-    public void setUp() {
+    public void setUp() throws IOException {
         fileSystemDriver = new FileSystemDriver(fileSystem);
         fileSystemDriver.formatFileSystem();
     }
@@ -37,12 +39,12 @@ public class FileSystemDriverTest {
     }
 
     @AfterEach
-    public void cleanUp() {
+    public void cleanUp() throws IOException {
         fileSystemDriver.formatFileSystem();
     }
 
     @Test
-    public void shouldCreateEmptyFile() {
+    public void shouldCreateEmptyFile() throws IOException {
         String randomName = alphanumeric(10);
         fileSystemDriver.createFile(randomName);
         byte[] result = fileSystemDriver.readFromFile(randomName);
@@ -51,7 +53,7 @@ public class FileSystemDriverTest {
     }
 
     @Test
-    public void shouldWriteFileWithContent() {
+    public void shouldWriteFileWithContent() throws IOException {
         String randomName = alphanumeric(10);
         String randomContent = alphanumeric(10);
         fileSystemDriver.createFile(randomName, randomContent.getBytes());
@@ -60,7 +62,7 @@ public class FileSystemDriverTest {
     }
 
     @Test
-    public void shouldThrowException_whenTryToCreateFileWithExistingFilename() {
+    public void shouldThrowException_whenTryToCreateFileWithExistingFilename() throws IOException {
         String randomName = alphanumeric(10);
         fileSystemDriver.createFile(randomName);
         assertThrows(IllegalArgumentException.class,
@@ -69,7 +71,7 @@ public class FileSystemDriverTest {
     }
 
     @Test
-    public void shouldOverwriteFile() {
+    public void shouldOverwriteFile() throws IOException {
         String randomName = alphanumeric(10);
         String randomContent = alphanumeric(10);
         fileSystemDriver.createFile(randomName);
@@ -92,8 +94,47 @@ public class FileSystemDriverTest {
         assertThrows(IllegalArgumentException.class, () -> fileSystemDriver.copyExistingFile(path));
     }
 
+    @Test
+    public void shouldDownloadAndSaveFile() throws IOException {
+        String url = "https://raw.githubusercontent.com/kynyan/2fsystem/master/src/test/resources/data/readme.md";
+        fileSystemDriver.downloadAndSaveFile(url, "readme.md");
+        byte[] actual = fileSystemDriver.readFromFile("readme.md");
+        byte[] expected = getBytesFromPath();
+        assertArrayEquals(expected, actual);
+    }
+
+    @Test
+    public void shouldThrowException_ifFileNotFound() {
+        String url = "https://raw.githubusercontent.com/kynyan/2fsystem/master/src/test/resources/data/readme1.md";
+        String expectedErrorMsg = String.format("Connection to %s returned 404", url);
+        assertThrows(IllegalArgumentException.class,
+                () -> fileSystemDriver.downloadAndSaveFile(url, "readme.md"),
+                expectedErrorMsg);
+    }
+
+    @Test
+    public void shouldThrowException_ifNotEnoughSpace() {
+        String url = "https://raw.githubusercontent.com/kynyan/2fsystem/master/src/test/resources/data/large_image.jpeg";
+        String expectedErrorMsg = String.format("Available space of 3 kB is less then file size of 8 kB");
+        assertThrows(IllegalArgumentException.class,
+                () -> fileSystemDriver.downloadAndSaveFile(url, "large_image.jpeg"),
+                expectedErrorMsg);
+    }
+
+    @Test
+    public void shouldThrowException_ifUrlIsMalformed() {
+        String url = "readme1.md";
+        assertThrows(MalformedURLException.class,
+                () -> fileSystemDriver.downloadAndSaveFile(url, "readme.md"));
+    }
+
     private int convertBytesToInt(byte[] array) {
         ByteBuffer wrapped = ByteBuffer.wrap(array);
         return wrapped.getInt();
+    }
+
+    private byte[] getBytesFromPath() throws IOException {
+        String path = getClass().getClassLoader().getResource("data/readme.md").getPath();
+        return Files.readAllBytes(Paths.get(path));
     }
 }

@@ -5,6 +5,8 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -26,6 +28,7 @@ public class FileSystem {
     private final static int INT_SIZE = 4;
     private final static int BOOL_SIZE = 1;
     private final static int HEADER_SIZE = 8;
+    private final static int CHUNK_SIZE = 512;
     private final static String FILENAME = "fileSystem";
 
     private final int fileSystemSize;
@@ -111,11 +114,10 @@ public class FileSystem {
     }
 
     /**
-     * Uses {@link #validateForWrite(String, int)} to check if file
-     * with the same name already exists and if there is enough space to write.
-     * Opens MemoryMappedBuffer on top of {@link #fileSystem} file to write filename
-     * length, filename, content length, and content. Sets currentPosition to the
-     * start of unoccupied file space
+     * Uses {@link #checkIfFileWithSameNameExists(String)} to check if file
+     * with the same name already exists. Opens MemoryMappedBuffer on top
+     * of {@link #fileSystem} file to write filename length, filename, content length,
+     * and content. Sets currentPosition to the start of unoccupied file space
      *
      * @param  file
      *         Contains String filename and byte[] content to write
@@ -130,9 +132,10 @@ public class FileSystem {
         LOCK.writeLock().lock();
         try {
             int totalLength = file.getTotalLength();
-            validateForWrite(file.getName(), totalLength);
+            String filename = file.getName();
+            checkIfFileWithSameNameExists(filename);
             int offset = currentPosition;
-            currentPosition = currentPosition + file.getTotalLength();
+            currentPosition = currentPosition + totalLength;
             fileSystemTree.put(file.getName(), offset);
             int lowerBoundary = INT_SIZE;
             int channelSize = (offset - INT_SIZE) + totalLength;
@@ -143,7 +146,7 @@ public class FileSystem {
                 memory.put((byte) 0);
                 //write filename
                 memory.putInt(file.getNameLength());
-                memory.put(file.getName().getBytes());
+                memory.put(filename.getBytes());
                 //write file content
                 memory.putInt(file.getContentLength());
                 memory.put(file.getContent());
@@ -156,15 +159,58 @@ public class FileSystem {
         }
     }
 
-    private void validateForWrite(String filename, int totalLength) throws IOException {
+    public void writeFileFromConnection(HttpURLConnection connection, String filename) throws IOException {
+        LOCK.writeLock().lock();
+        try {
+            try (InputStream in = connection.getInputStream()) {
+                int offset = currentPosition;
+                int lowerBoundary = INT_SIZE;
+                int channelSize = fileSystemSize - INT_SIZE;
+
+                try(FileChannel fc = FileChannel.open(fileSystem.toPath(), READ, WRITE)) {
+                    MappedByteBuffer memory = fc.map(FileChannel.MapMode.READ_WRITE, lowerBoundary, channelSize);
+                    //write isRemoved flag
+                    memory.position(offset - lowerBoundary);
+                    memory.put((byte) 0);
+                    //write filename
+                    byte[] filenameBytes = filename.getBytes();
+                    memory.putInt(filenameBytes.length);
+                    memory.put(filenameBytes);
+                    //write file content skipping content size
+                    int contentLengthPosition = memory.position();
+                    memory.position(contentLengthPosition + INT_SIZE);
+                    currentPosition += contentLengthPosition + INT_SIZE;
+                    byte[] dataBuffer = new byte[CHUNK_SIZE];
+                    while (in.read(dataBuffer, 0, CHUNK_SIZE) != -1) {
+                        if (isEnoughSpace(CHUNK_SIZE)) {
+                            currentPosition += CHUNK_SIZE;
+                            memory.put(dataBuffer);
+                        } else {
+                            currentPosition = offset;
+                            String errorMsg = String.format("Available space of %d kB is less then file size",
+                                    getAvailableSpace() / 1024);
+                            throw new IllegalArgumentException(errorMsg);
+                        }
+                        dataBuffer = new byte[CHUNK_SIZE];
+                    }
+                    //write content size
+                    int contentLength = memory.position() - contentLengthPosition - INT_SIZE;
+                    memory.position(contentLengthPosition);
+                    memory.putInt(contentLength);
+                    fileSystemTree.put(filename, offset);
+                    //update current position
+                    memory.position(0);
+                    memory.putInt(currentPosition);
+                }
+            }
+        } finally {
+            LOCK.writeLock().unlock();
+        }
+    }
+
+    private void checkIfFileWithSameNameExists(String filename) {
         if (fileSystemTree.containsKey(filename)) {
             throw new IllegalArgumentException(String.format("File with \"%s\" name already exists", filename));
-        }
-
-        if (!isEnoughSpace(totalLength)) {
-            String errorMsg = String.format("Available space of %d kB is less then file size of %d kB",
-                    getAvailableSpace() / 1024, (totalLength) / 1024);
-            throw new IOException(errorMsg);
         }
     }
 
@@ -420,9 +466,8 @@ public class FileSystem {
             delete(filename);
             //then write
             int totalLength = file.getTotalLength();
-            validateForWrite(filename, totalLength);
             int offset = currentPosition;
-            currentPosition = currentPosition + file.getTotalLength();
+            currentPosition = currentPosition + totalLength;
             fileSystemTree.put(filename, offset);
             int lowerBoundary = INT_SIZE;
             int channelSize = (offset - INT_SIZE) + totalLength;
