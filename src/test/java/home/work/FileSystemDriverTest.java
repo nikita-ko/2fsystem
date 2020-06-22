@@ -97,10 +97,10 @@ public class FileSystemDriverTest {
     @Test
     public void shouldDownloadAndSaveFile() throws IOException {
         String url = "https://raw.githubusercontent.com/kynyan/2fsystem/master/src/test/resources/data/readme.md";
-        fileSystemDriver.downloadAndSaveFile(url, "readme.md");
+        fileSystemDriver.downloadAndSaveFile(url);
         byte[] actual = fileSystemDriver.readFromFile("readme.md");
         byte[] expected = getBytesFromPath("data/readme.md");
-        assertArrayEquals(expected, actual);
+        assertEquals(new String(expected), new String(actual).trim());
     }
 
     @Test
@@ -108,7 +108,7 @@ public class FileSystemDriverTest {
         String url = "https://raw.githubusercontent.com/kynyan/2fsystem/master/src/test/resources/data/readme1.md";
         String expectedErrorMsg = String.format("Connection to %s returned 404", url);
         assertThrows(IllegalArgumentException.class,
-                () -> fileSystemDriver.downloadAndSaveFile(url, "readme.md"),
+                () -> fileSystemDriver.downloadAndSaveFile(url),
                 expectedErrorMsg);
     }
 
@@ -117,7 +117,7 @@ public class FileSystemDriverTest {
         String url = "https://raw.githubusercontent.com/kynyan/2fsystem/master/src/test/resources/data/large_image.jpeg";
         String expectedErrorMsg = String.format("Available space of 3 kB is less then file size of 8 kB");
         assertThrows(IllegalArgumentException.class,
-                () -> fileSystemDriver.downloadAndSaveFile(url, "large_image.jpeg"),
+                () -> fileSystemDriver.downloadAndSaveFile(url),
                 expectedErrorMsg);
     }
 
@@ -125,7 +125,7 @@ public class FileSystemDriverTest {
     public void shouldThrowException_ifUrlIsMalformed() {
         String url = "readme1.md";
         assertThrows(MalformedURLException.class,
-                () -> fileSystemDriver.downloadAndSaveFile(url, "readme.md"));
+                () -> fileSystemDriver.downloadAndSaveFile(url));
     }
 
     private int convertBytesToInt(byte[] array) {

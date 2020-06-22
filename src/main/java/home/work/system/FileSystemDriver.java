@@ -83,9 +83,6 @@ public class FileSystemDriver {
      * @param  uri
      *         URI to download file
      *
-     * @param  filename
-     *         Filename which will be written to the file system
-     *
      * @throws  IOException
      *          If some other I/O error occurs
      *
@@ -93,15 +90,17 @@ public class FileSystemDriver {
      *          In case url is malformed, connection returned
      *          anything other than 200, or if there is not enough space
      */
-    public void downloadAndSaveFile(String uri, String filename) throws IOException {
+    public void downloadAndSaveFile(String uri) throws IOException {
         HttpURLConnection connection = openConnection(uri);
         int fileSize = connection.getContentLength();
+        String filename = getFilename(connection, uri);
         if (fileSize < 1) {
             fileSize = filename.getBytes().length;
         }
         checkThereIsEnoughSpace(fileSize);
-        logger.info("Started downloading file from: " + uri);
+        logger.info("Started downloading file from " + uri);
         fileSystem.writeFileFromConnection(connection, filename);
+        logger.info("Completed downloading file from " + uri);
     }
 
     /**
@@ -126,6 +125,29 @@ public class FileSystemDriver {
             throw new IllegalArgumentException(errorMsg);
         }
         return connection;
+    }
+
+    /**
+     * Gets filename from the connection "Content-Disposition" header
+     * or from the URI if header doesn't exist
+     *
+     * @param  uri
+     *         URI to download file
+     */
+    private String getFilename(HttpURLConnection connection, String uri) {
+        String filename = "";
+        String disposition = connection.getHeaderField("Content-Disposition");
+        if (disposition != null) {
+            // extracts file name from header field
+            int index = disposition.indexOf("filename=");
+            if (index > 0) {
+                filename = disposition.substring(index + 10, disposition.length() - 1);
+            }
+        } else {
+            // extracts file name from URL
+            filename = uri.substring(uri.lastIndexOf("/") + 1);
+        }
+        return filename;
     }
 
     /**

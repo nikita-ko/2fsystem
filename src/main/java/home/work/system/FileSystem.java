@@ -28,7 +28,6 @@ public class FileSystem {
     private final static int INT_SIZE = 4;
     private final static int BOOL_SIZE = 1;
     private final static int HEADER_SIZE = 8;
-    private final static int CHUNK_SIZE = 512;
     private final static String FILENAME = "fileSystem";
 
     private final int fileSystemSize;
@@ -159,49 +158,69 @@ public class FileSystem {
         }
     }
 
+    /**
+     * Uses {@link #checkIfFileWithSameNameExists(String)} to check if file
+     * with the same name already exists. Opens MemoryMappedBuffer on top
+     * of {@link #fileSystem} file to write filename length, filename, content length,
+     * and content. Content length is assumed to be unknown, hence, content is written
+     * byte by byte until the end of the input stream is reached.
+     *
+     * @param  connection
+     *         Valid connection to download content from
+     *
+     * @param  filename
+     *         Filename of the file to save to the file system
+     *
+     * @throws  IllegalArgumentException
+     *          If file with the same name already exists in file system, or
+     *          if there is not enough space
+     *
+     * @throws  IOException
+     *          If some other I/O error occurs
+     */
     public void writeFileFromConnection(HttpURLConnection connection, String filename) throws IOException {
         LOCK.writeLock().lock();
+        checkIfFileWithSameNameExists(filename);
         try {
-            try (InputStream in = connection.getInputStream()) {
-                int offset = currentPosition;
-                int lowerBoundary = INT_SIZE;
-                int channelSize = fileSystemSize - INT_SIZE;
+            InputStream inputStream = connection.getInputStream();
+            int offset = currentPosition;
+            int lowerBoundary = INT_SIZE;
+            int channelSize = fileSystemSize - INT_SIZE;
 
-                try(FileChannel fc = FileChannel.open(fileSystem.toPath(), READ, WRITE)) {
-                    MappedByteBuffer memory = fc.map(FileChannel.MapMode.READ_WRITE, lowerBoundary, channelSize);
-                    //write isRemoved flag
-                    memory.position(offset - lowerBoundary);
-                    memory.put((byte) 0);
-                    //write filename
-                    byte[] filenameBytes = filename.getBytes();
-                    memory.putInt(filenameBytes.length);
-                    memory.put(filenameBytes);
-                    //write file content skipping content size
-                    int contentLengthPosition = memory.position();
-                    memory.position(contentLengthPosition + INT_SIZE);
-                    currentPosition += contentLengthPosition + INT_SIZE;
-                    byte[] dataBuffer = new byte[CHUNK_SIZE];
-                    while (in.read(dataBuffer, 0, CHUNK_SIZE) != -1) {
-                        if (isEnoughSpace(CHUNK_SIZE)) {
-                            currentPosition += CHUNK_SIZE;
-                            memory.put(dataBuffer);
-                        } else {
-                            currentPosition = offset;
-                            String errorMsg = String.format("Available space of %d kB is less then file size",
-                                    getAvailableSpace() / 1024);
-                            throw new IllegalArgumentException(errorMsg);
-                        }
-                        dataBuffer = new byte[CHUNK_SIZE];
+            try(FileChannel fc = FileChannel.open(fileSystem.toPath(), READ, WRITE)) {
+                MappedByteBuffer memory = fc.map(FileChannel.MapMode.READ_WRITE, lowerBoundary, channelSize);
+                //write isRemoved flag
+                memory.position(offset - lowerBoundary);
+                memory.put((byte) 0);
+                //write filename
+                byte[] filenameBytes = filename.getBytes();
+                memory.putInt(filenameBytes.length);
+                memory.put(filenameBytes);
+                //write file content skipping content size
+                int contentLengthPosition = memory.position();
+                memory.position(contentLengthPosition + INT_SIZE);
+                currentPosition += contentLengthPosition + INT_SIZE;
+
+                int byteRead;
+                while ((byteRead = inputStream.read()) != -1) {
+                    if (isEnoughSpace(1)) {
+                        currentPosition += 1;
+                        memory.put((byte) byteRead);
+                    } else {
+                        currentPosition = offset;
+                        String errorMsg = String.format("Available space of %d kB is less then file size",
+                                getAvailableSpace() / 1024);
+                        throw new IllegalArgumentException(errorMsg);
                     }
-                    //write content size
-                    int contentLength = memory.position() - contentLengthPosition - INT_SIZE;
-                    memory.position(contentLengthPosition);
-                    memory.putInt(contentLength);
-                    fileSystemTree.put(filename, offset);
-                    //update current position
-                    memory.position(0);
-                    memory.putInt(currentPosition);
                 }
+                //write content size
+                int contentLength = memory.position() - contentLengthPosition - INT_SIZE;
+                memory.position(contentLengthPosition);
+                memory.putInt(contentLength);
+                fileSystemTree.put(filename, offset);
+                //update current position
+                memory.position(0);
+                memory.putInt(currentPosition);
             }
         } finally {
             LOCK.writeLock().unlock();
