@@ -6,6 +6,7 @@ This is a simple filesystem based on a single file.
 [FileSystem](https://github.com/kynyan/2fsystem/blob/master/src/main/java/home/work/system/FileSystem.java) is used to perform all the operations, which include:
 * Create file
 * Copy existing file from ambient filesystem
+* Download and save file using specified URL
 * Read file
 * Remove file
 * Defragment filesystem
@@ -30,3 +31,7 @@ This is because internal implementation of FileSystem uses int.
 * If the app was using FileSystem stopped, FileSystem can be restored 
 from the file "fileSystem" at the next start.
 * To ensure there is only one instance of FileSystem Spring dependency injection is used
+
+## File system structure
+
+ ![alt text](https://github.com/kynyan/2fsystem/blob/master/src/main/resources/file_structure.jpg "File structure")

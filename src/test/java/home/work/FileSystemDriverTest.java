@@ -99,7 +99,7 @@ public class FileSystemDriverTest {
         String url = "https://raw.githubusercontent.com/kynyan/2fsystem/master/src/test/resources/data/readme.md";
         fileSystemDriver.downloadAndSaveFile(url, "readme.md");
         byte[] actual = fileSystemDriver.readFromFile("readme.md");
-        byte[] expected = getBytesFromPath();
+        byte[] expected = getBytesFromPath("data/readme.md");
         assertArrayEquals(expected, actual);
     }
 
@@ -133,8 +133,8 @@ public class FileSystemDriverTest {
         return wrapped.getInt();
     }
 
-    private byte[] getBytesFromPath() throws IOException {
-        String path = getClass().getClassLoader().getResource("data/readme.md").getPath();
-        return Files.readAllBytes(Paths.get(path));
+    private byte[] getBytesFromPath(String path) throws IOException {
+        String absolutePath = getClass().getClassLoader().getResource(path).getPath();
+        return Files.readAllBytes(Paths.get(absolutePath));
     }
 }
