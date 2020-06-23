@@ -2,12 +2,14 @@ package home.work;
 
 import home.work.system.File;
 import home.work.system.FileSystem;
+import home.work.system.ReadOnlyFileChannel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.HttpURLConnection;
@@ -60,6 +62,18 @@ public class FileSystemTest {
         File fromFS = fileSystem.readFileFromFileSystem("file-" + randomFileNumber);
         File original = listOfFiles.get(randomFileNumber);
         assertFilesEqual(original, fromFS);
+    }
+
+    @Test
+    public void shouldReturnReadableReadOnlyFileChannel() throws IOException {
+        List<File> listOfFiles = writeSomeFilesToFileSystem(fileSystem);
+        int randomFileNumber = integer(1, listOfFiles.size() - 1);
+        byte[] expected = listOfFiles.get(randomFileNumber).getContent();
+        ReadOnlyFileChannel fileChannel = fileSystem.getReadOnlyFileChannel("file-" + randomFileNumber);
+        byte[] actual = new byte[fileChannel.size()];
+        fileChannel.read(actual, 0, fileChannel.size());
+        fileChannel.close();
+        assertArrayEquals(expected, actual);
     }
 
     @Test

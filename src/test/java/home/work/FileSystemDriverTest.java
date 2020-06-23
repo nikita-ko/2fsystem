@@ -89,6 +89,13 @@ public class FileSystemDriverTest {
     }
 
     @Test
+    public void shouldThrowException_ifFileNotFound_whenCopy() throws IOException {
+        assertThrows(IllegalArgumentException.class,
+                () -> fileSystemDriver.copyExistingFile("data/not_found"),
+                "Could not recognize file at data/not_found");
+    }
+
+    @Test
     public void shouldThrowException_IfNotEnoughSpace() {
         String path = getClass().getClassLoader().getResource("data/large_image.jpeg").getPath();
         assertThrows(IllegalArgumentException.class, () -> fileSystemDriver.copyExistingFile(path));
@@ -104,7 +111,7 @@ public class FileSystemDriverTest {
     }
 
     @Test
-    public void shouldThrowException_ifFileNotFound() {
+    public void shouldThrowException_ifFileNotFound_whenDownload() {
         String url = "https://raw.githubusercontent.com/kynyan/2fsystem/master/src/test/resources/data/readme1.md";
         String expectedErrorMsg = String.format("Connection to %s returned 404", url);
         assertThrows(IllegalArgumentException.class,

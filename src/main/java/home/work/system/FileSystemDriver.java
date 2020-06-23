@@ -65,13 +65,13 @@ public class FileSystemDriver {
      *          If some other I/O error occurs
      *
      * @throws  IllegalArgumentException
-     *          In case there is not enough space
+     *          In case there is not enough space, or file is not found
      */
     public void copyExistingFile(String pathToFile) throws IOException {
         java.io.File original = new java.io.File(pathToFile);
-        byte[] content = Files.readAllBytes(original.toPath());
-        checkThereIsEnoughSpace(content.length);
-        createFile(original.getName(), content);
+        checkFileExists(original);
+        checkThereIsEnoughSpace(original.length());
+        fileSystem.writeFileToFileSystem(original);
     }
 
     /**
@@ -220,6 +220,23 @@ public class FileSystemDriver {
     }
 
     /**
+     * Returns an initialized instance of {@link ReadOnlyFileChannel},
+     * containing content of the file with specified filename.
+     *
+     * @param  filename
+     *         Filename to search for
+     *
+     * @throws  IOException
+     *          If some other I/O error occurs
+     *
+     * @throws  java.io.FileNotFoundException
+     *          If file with specified name was not found
+     */
+    public ReadOnlyFileChannel getReadOnlyFileChannel(String filename) throws IOException {
+        return fileSystem.getReadOnlyFileChannel(filename);
+    }
+
+    /**
      * Removes all data (except file system size and current position)
      * from the filesystem
      *
@@ -242,6 +259,14 @@ public class FileSystemDriver {
             //9 is 8 bytes for filename and content lengths + 1 byte for isRemoved flag
             String errorMsg = String.format("Available space of %d kB is less then file size of %d kB",
                     fileSystem.getAvailableSpace() / 1024, (fileSize) / 1024);
+            logger.error(errorMsg);
+            throw new IllegalArgumentException(errorMsg);
+        }
+    }
+
+    private void checkFileExists(java.io.File file) {
+        if (!file.exists() || !file.isFile()) {
+            String errorMsg = String.format("Could not recognize file at %s", file.getPath());
             logger.error(errorMsg);
             throw new IllegalArgumentException(errorMsg);
         }

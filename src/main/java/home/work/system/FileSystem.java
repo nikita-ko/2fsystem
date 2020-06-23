@@ -2,14 +2,13 @@ package home.work.system;
 
 import org.springframework.stereotype.Component;
 
+import java.io.*;
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
@@ -130,9 +129,9 @@ public class FileSystem {
     public void writeFileToFileSystem(home.work.system.File file) throws IOException {
         LOCK.writeLock().lock();
         try {
-            int totalLength = file.getTotalLength();
             String filename = file.getName();
             checkIfFileWithSameNameExists(filename);
+            int totalLength = file.getTotalLength();
             int offset = currentPosition;
             currentPosition = currentPosition + totalLength;
             fileSystemTree.put(file.getName(), offset);
@@ -149,6 +148,42 @@ public class FileSystem {
                 //write file content
                 memory.putInt(file.getContentLength());
                 memory.put(file.getContent());
+                //update current position
+                memory.position(0);
+                memory.putInt(currentPosition);
+            }
+        } finally {
+            LOCK.writeLock().unlock();
+        }
+    }
+
+    public void writeFileToFileSystem(File file) throws IOException {
+        LOCK.writeLock().lock();
+        try {
+            String filename = file.getName();
+            checkIfFileWithSameNameExists(filename);
+            int contentLength = (int) file.length(); //downcast because we already know it fits available space
+            int totalLength = BOOL_SIZE + 2 * INT_SIZE + filename.getBytes().length + contentLength;
+            int offset = currentPosition;
+            currentPosition = currentPosition + totalLength;
+            fileSystemTree.put(file.getName(), offset);
+            int lowerBoundary = INT_SIZE;
+            int channelSize = (offset - INT_SIZE) + totalLength;
+            try(FileChannel destChannel = FileChannel.open(fileSystem.toPath(), READ, WRITE);
+                InputStream inputStream = new FileInputStream(file)) {
+                MappedByteBuffer memory = destChannel.map(FileChannel.MapMode.READ_WRITE, lowerBoundary, channelSize);
+                //write isRemoved flag
+                memory.position(offset - lowerBoundary);
+                memory.put((byte) 0);
+                //write filename
+                memory.putInt(filename.getBytes().length);
+                memory.put(filename.getBytes());
+                //write file content
+                memory.putInt(contentLength);
+                int byteRead;
+                while ((byteRead = inputStream.read()) != -1) {
+                    memory.put((byte) byteRead);
+                }
                 //update current position
                 memory.position(0);
                 memory.putInt(currentPosition);
@@ -275,6 +310,32 @@ public class FileSystem {
             LOCK.readLock().unlock();
         }
         return file;
+    }
+
+    public ReadOnlyFileChannel getReadOnlyFileChannel(String filename) throws IOException {
+        LOCK.readLock().lock();
+        try {
+            Integer offset = fileSystemTree.get(filename);
+            if (offset == null) {
+                throw new FileNotFoundException(String.format("File %s not found", filename));
+            }
+
+            int lowerBoundary = offset + BOOL_SIZE;
+            int channelSize = currentPosition - offset - BOOL_SIZE;
+            Path path = fileSystem.toPath();
+            try(FileChannel fc = FileChannel.open(path, READ)) {
+                MappedByteBuffer memory = fc.map(FileChannel.MapMode.READ_ONLY, lowerBoundary, channelSize);
+                //read filename length
+                int filenameLength = memory.getInt();
+                //read file content length
+                memory.position(INT_SIZE + filenameLength);
+                int contentLength = memory.getInt();
+                //read file content
+                return new ReadOnlyFileChannel(path, lowerBoundary + 2 * INT_SIZE + filenameLength, contentLength);
+            }
+        } finally {
+            LOCK.readLock().unlock();
+        }
     }
 
     /**
